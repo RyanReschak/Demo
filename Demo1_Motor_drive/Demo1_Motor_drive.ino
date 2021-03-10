@@ -17,6 +17,8 @@ long int counter1 = 0; //keeps track of position of encoder
 long int counter2 = 0;
 const float r = 7.3;  //these values are the constants of the body of the car and wheels in (cm)
 const float base = 24.45; //in cm
+
+//1 means right wheel and 2 means left wheel
 float AngularVelocity1 = 0;  //initialize all variables
 float AngularVelocity2 = 0;
 float StartTime1 = 0;
@@ -30,6 +32,10 @@ float phi = 0;
 float phi_dot = 0;
 float Position1 = 0;
 float Position2 = 0;
+int PWMOutput1 = 0;
+int PWMOutput2 = 0;
+
+
 void setup() {
   
   // set pinmodes for digital inputs to have pullup resistor:
@@ -62,7 +68,7 @@ void setup() {
 void loop() {
   //Serial.print((StartLoop/1000000),5); //print time
   //Serial.print("\t"); //print tab
-  digitalWrite(VS1,HIGH);
+  //digitalWrite(VS1,HIGH);
   if ((Position1+Position2)/2*r < 305){
     analogWrite(MV1, 100);
     analogWrite(MV2, 100);
@@ -122,4 +128,64 @@ void interruptEncoder2 (){ //interrupt
     //AngularVelocity2 = (-2*2*PI/3200)/((EndTime2 - StartTime2)/1000000);
   }
   StartTime2 = EndTime2;
+}
+
+void Distance() {
+  //Angular Position of Wheel
+  currPos = (Position1+Position2)/2*r;
+  
+  //currPos=AngularPosition1;
+  
+  error=setPosition-currPos;
+  
+  I=I+(Ts/1000)*error;
+  
+  PWMOutput = error*(Kp+Ki*I);
+  
+  if(abs(PWMOutput)>255){
+    PWMOutput=constrain(PWMOutput,-1,1)*255;
+    error = constrain(error,-1,1)*min(255/Kp,abs(error));
+  }
+ 
+  //Both wheels moving forward
+  digitalWrite(VS1,HIGH);
+  digitalWrite(VS2,HIGH);
+  
+  PWMOutput = abs(PWMOutput);
+
+  analogWrite(MV1, PWMOutput1);
+  analogWrite(MV2, PWMOutput1);
+  
+  Ts=micros()-Tc;
+  Tc=micros();
+
+  
+}
+
+void RotateBot() {
+  //Angular Position of Wheel
+  currPosRight = Position1;
+  currPosLeft = Position2;
+  //currPos=AngularPosition1;
+  
+  error=setPositionAngle-currPos;
+  
+  I=I+(Ts/1000)*error;
+  
+  PWMOutput = error*(Kp+Ki*I);
+  
+  if(abs(PWMOutput)>255){
+    PWMOutput=constrain(PWMOutput,-1,1)*255;
+    error = constrain(error,-1,1)*min(255/Kp,abs(error));
+  }
+ 
+ 
+  digitalWrite (VS1, HIGH);
+  PWMOutput = abs(PWMOutput);
+
+  analogWrite(outPin, PWMOutput);
+  Ts=micros()-Tc;
+  Tc=micros();
+
+  
 }
