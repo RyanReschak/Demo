@@ -3,6 +3,7 @@
 //Velocity left and Right of Wheels
 //Description: calculate the velocities of the left and right wheel  
 #define PI 3.1415926535897932384626433832795
+#define PWMperVolt  32.69
 #define MV1 9
 #define MV2 10
 #define VS1 7
@@ -17,6 +18,10 @@ long int counter1 = 0; //keeps track of position of encoder
 long int counter2 = 0;
 const float r = 7.3;  //these values are the constants of the body of the car and wheels in (cm)
 const float base = 24.45; //in cm
+const float KpTheta =-105.627;
+const float Kd = 0;
+const float KpRoh = 0.64981382;
+const float KpPhi =-5.9204389;
 
 //1 means right wheel and 2 means left wheel
 float AngularVelocity1 = 0;  //initialize all variables
@@ -32,6 +37,23 @@ float phi = 0;
 float phi_dot = 0;
 float Position1 = 0;
 float Position2 = 0;
+float desAngle = 0;
+float desForwardSpeed =0;
+float desTurningRate =0;
+float currForwardSpeed =0;
+float currTheta =0;
+float currTurningRate =0;
+float errorForwardSpeed =0;
+float errorTurningSpeed =0;
+float errorTheta =0;
+float errorThetaPast=0;
+float Vabs =0;
+float Vdelta =0;
+float Va1 =0;
+float Va2 =0;
+float Ts=0;
+float Tc;
+float D=0;
 int PWMOutput1 = 0;
 int PWMOutput2 = 0;
 
@@ -56,6 +78,7 @@ void setup() {
   digitalWrite(pin4,HIGH);
   // initialize serial communication at 9600 bits per second:
   Serial.begin(115200);
+  Ts=micros();
   StartTime1 = micros();
   StartTime2 = micros();  //these are too keep track of the time in the loop and interrupt
   StartLoop = micros();
@@ -101,14 +124,14 @@ void interruptEncoder1 (){ //interrupt
     EndTime1 = micros();  // end time for interrupt1 to calculate angular velocity
     counter1 = counter1 - 2;
     Position1 = (counter1*2*PI)/1600;
-    //AngularVelocity1 = (-2*2*PI/3200)/((EndTime1 - StartTime1)/1000000);
+    AngularVelocity1 = (-2*2*PI/3200)/((EndTime1 - StartTime1)/1000000);
     
   }else{
     
     EndTime1 = micros();
     counter1 = counter1 + 2;
     Position1 = (counter1*2*PI)/1600;
-    //AngularVelocity1 = (2*2*PI/3200)/((EndTime1 - StartTime1)/1000000);
+    AngularVelocity1 = (2*2*PI/3200)/((EndTime1 - StartTime1)/1000000);
   }
   StartTime1 = EndTime1; //reset the start time to current time
 }
@@ -125,67 +148,118 @@ void interruptEncoder2 (){ //interrupt
     EndTime2 = micros();
     counter2 = counter2 - 2;
     Position2 = (counter2*2*PI)/1600;
-    //AngularVelocity2 = (-2*2*PI/3200)/((EndTime2 - StartTime2)/1000000);
+    AngularVelocity2 = (-2*2*PI/3200)/((EndTime2 - StartTime2)/1000000);
   }
   StartTime2 = EndTime2;
 }
 
-void Distance() {
-  //Angular Position of Wheel
-  currPos = (Position1+Position2)/2*r;
+void MotionController(){ // this should be all that is required to run the bots motion provided with a desired angle and forward velocity
+  currTheta = r*(Position1 - Position2)/base; // where d is the distantce between the wheels
+  errorTheta = desAngle-currTheta;
   
-  //currPos=AngularPosition1;
-  
-  error=setPosition-currPos;
-  
-  I=I+(Ts/1000)*error;
-  
-  PWMOutput = error*(Kp+Ki*I);
-  
-  if(abs(PWMOutput)>255){
-    PWMOutput=constrain(PWMOutput,-1,1)*255;
-    error = constrain(error,-1,1)*min(255/Kp,abs(error));
+  if(Ts>0){
+    D=(errorTheta-errorThetaPast)/Ts;
   }
- 
-  //Both wheels moving forward
-  digitalWrite(VS1,HIGH);
-  digitalWrite(VS2,HIGH);
+  else{
+    D=0;
+  }
+  desTurningRate= errorTheta*KpTheta+Kd*D;//set by another controller will figure out
+  errorThetaPast=errorTheta;
   
-  PWMOutput = abs(PWMOutput);
+  currForwardSpeed = r*(AngularVelocity1 + AngularVelocity2)/2;//some setPosition Bullshit
+  currTurningRate =  r*(AngularVelocity1 - AngularVelocity2)/base;//stuff
+  
+  errorForwardSpeed= desForwardSpeed-currForwardSpeed;
+  errorTurningSpeed = desTurningRate-currTurningRate;
 
-  analogWrite(MV1, PWMOutput1);
-  analogWrite(MV2, PWMOutput1);
-  
-  Ts=micros()-Tc;
-  Tc=micros();
+  Vabs = errorForwardSpeed*KpRoh;
+  Vdelta = errorTurningSpeed*KpPhi;
 
+  Va1 = (Vabs+Vdelta)/2;
+  Va2 = (Vabs-Vdelta)/2;
   
-}
+  PWMOutput1 = Va1*PWMperVolt;
+  PWMOutput2 = Va2*PWMperVolt;
+  
 
-void RotateBot() {
-  //Angular Position of Wheel
-  currPosRight = Position1;
-  currPosLeft = Position2;
-  //currPos=AngularPosition1;
-  
-  error=setPositionAngle-currPos;
-  
-  I=I+(Ts/1000)*error;
-  
-  PWMOutput = error*(Kp+Ki*I);
-  
-  if(abs(PWMOutput)>255){
-    PWMOutput=constrain(PWMOutput,-1,1)*255;
-    error = constrain(error,-1,1)*min(255/Kp,abs(error));
+  if(abs(PWMOutput1)>255){
+    PWMOutput1=constrain(PWMOutput1,-1,1)*255;
+    errorForwardSpeed = constrain(errorForwardSpeed,-1,1)*min(255/KpRoh,abs(errorForwardSpeed));
+  }
+  if(abs(PWMOutput2)>255){
+    PWMOutput2=constrain(PWMOutput2,-1,1)*255;
+    errorTurningSpeed = constrain(errorTurningSpeed,-1,1)*min(255/KpPhi,abs(errorTurningSpeed));
   }
  
  
   digitalWrite (VS1, HIGH);
-  PWMOutput = abs(PWMOutput);
+  //PWMOutput1 = abs(PWMOutput1);
+  //PWMOutput2 = abs(PWMOutput2);
 
-  analogWrite(outPin, PWMOutput);
+  analogWrite(MV1, PWMOutput2);
+  analogWrite(MV2, PWMOutput2);
+  
   Ts=micros()-Tc;
   Tc=micros();
 
-  
 }
+
+//void Distance() {
+  //Angular Position of Wheel
+  //currPos = (Position1+Position2)/2*r;
+  
+  //currPos=AngularPosition1;
+  
+  //error=setPosition-currPos;
+  
+  //I=I+(Ts/1000)*error;
+  
+  //PWMOutput = error*(Kp+Ki*I);
+  
+  //if(abs(PWMOutput)>255){
+   // PWMOutput=constrain(PWMOutput,-1,1)*255;
+   // error = constrain(error,-1,1)*min(255/Kp,abs(error));
+  //}
+ 
+  //Both wheels moving forward
+  //digitalWrite(VS1,HIGH);
+  //digitalWrite(VS2,HIGH);
+  
+  //PWMOutput = abs(PWMOutput);
+
+  //analogWrite(MV1, PWMOutput1);
+  //analogWrite(MV2, PWMOutput1);
+  
+  //Ts=micros()-Tc;
+  //Tc=micros();
+
+  
+//}
+
+//void RotateBot() {
+  //Angular Position of Wheel
+  //currPosRight = Position1;
+  //currPosLeft = Position2;
+  //currPos=AngularPosition1;
+  
+  //error=setPositionAngle-currPos;
+  
+  //I=I+(Ts/1000)*error;
+  
+  //PWMOutput = error*(Kp+Ki*I);
+  
+  //if(abs(PWMOutput)>255){
+    //PWMOutput=constrain(PWMOutput,-1,1)*255;
+    //error = constrain(error,-1,1)*min(255/Kp,abs(error));
+  //}
+ 
+ 
+  //digitalWrite (VS1, HIGH);
+  //PWMOutput = abs(PWMOutput);
+
+  //analogWrite(outPin, PWMOutput);
+  //Ts=micros()-Tc;
+  //Tc=micros();
+
+  
+//}
