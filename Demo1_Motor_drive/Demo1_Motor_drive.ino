@@ -1,3 +1,28 @@
+
+//
+//
+//RyanReschak
+///
+//Demo
+//1
+//00
+//Code
+//Issues
+//Pull requests
+//Actions
+//Projects
+//Wiki
+//Security
+//Insights
+//Demo/Demo1_Motor_drive/Demo1_Motor_drive.ino
+//@MWehrlen
+//MWehrlen added motor driver code in place of previous prototypes
+//Latest commit 1f21c16 3 days ago
+// History
+// 2 contributors
+//@3rikSal@MWehrlen
+//265 lines (217 sloc)  7.27 KB
+//  
 //Erik Salazar
 //Feb 10, 2021
 //Velocity left and Right of Wheels
@@ -34,10 +59,12 @@ float StartLoop = 0;
 float EndLoop = 0;
 float p_dot = 0;
 float phi = 0;
+float upperThreshold = 0.1;
 float phi_dot = 0;
 float Position1 = 0;
 float Position2 = 0;
-float desAngle = 0;
+float setPosition = 0;
+float desAngle = PI/2;
 float desForwardSpeed =0;
 float desTurningRate =0;
 float currForwardSpeed =0;
@@ -56,6 +83,7 @@ float Tc;
 float D=0;
 int PWMOutput1 = 0;
 int PWMOutput2 = 0;
+boolean hasRun  = false;
 
 
 void setup() {
@@ -84,30 +112,35 @@ void setup() {
   StartLoop = micros();
   attachInterrupt(digitalPinToInterrupt (a),interruptEncoder1, RISING);
   attachInterrupt(digitalPinToInterrupt (c),interruptEncoder2, RISING);  //initialize the interrupts and sets the flag
+  boolean hasRun = false;
   
 }
 
 // the loop routine runs over and over again forever:
 void loop() {
-  //Serial.print((StartLoop/1000000),5); //print time
-  //Serial.print("\t"); //print tab
+   MotionController();
+   if (desForwardSpeed !=0 && desAngle ==0){
+      if((Position1 + Position2)/2 *r >= setPosition){
+          desForwardSpeed = 0;
+          AngularVelocity1 = 0;
+          AngularVelocity2 = 0;
+          
+      }
+   }
+    Serial.print(desForwardSpeed); //print time
+    Serial.print("\t"); //print tab
+    Serial.print(desAngle); //print time
+    Serial.print("\t"); //print tab
   //digitalWrite(VS1,HIGH);
-  if ((Position1+Position2)/2*r < 305){
-    analogWrite(MV1, 100);
-    analogWrite(MV2, 100);
-  }else{
-    analogWrite(MV1, 0);
-    analogWrite(MV2, 0);
-  }
-  
-  //p_dot = r*(AngularVelocity1 + AngularVelocity2)/2;  //equation for the velocity of the left wheel
-  Serial.println((Position1+Position2)/2*r,5);
+
+//  //p_dot = r*(AngularVelocity1 + AngularVelocity2)/2;  //equation for the velocity of the left wheel
+//  Serial.println((Position1+Position2)/2*r,5);
   //Serial.print("\t");
   //phi_dot = r*(AngularVelocity1 - AngularVelocity2)/base; //equation for the velocity of the right wheel
   //Serial.print(phi_dot,5);
  
   //Serial.print("\t");
-  //Serial.println(abs(p_dot)*(StartLoop/1000000));
+    Serial.println(currTheta);
   /*Serial.print(counter1);
   Serial.print("\t");
   Serial.println(counter2);*/
@@ -156,6 +189,10 @@ void interruptEncoder2 (){ //interrupt
 void MotionController(){ // this should be all that is required to run the bots motion provided with a desired angle and forward velocity
   currTheta = r*(Position1 - Position2)/base; // where d is the distantce between the wheels
   errorTheta = desAngle-currTheta;
+ 
+//  if(errorTheta <=upperThreshold || errorTheta >=lowerThreshold){
+//    errorTheta = 0;
+//  }
   
   if(Ts>0){
     D=(errorTheta-errorThetaPast)/Ts;
@@ -163,15 +200,23 @@ void MotionController(){ // this should be all that is required to run the bots 
   else{
     D=0;
   }
+  
   desTurningRate= errorTheta*KpTheta+Kd*D;//set by another controller will figure out
+  if(desForwardSpeed ==0 && (errorTheta <= upperThreshold)){
+      AngularVelocity1 = 0;
+      AngularVelocity2 = 0;
+      desTurningRate = 0;
+      
+  }
   errorThetaPast=errorTheta;
   
   currForwardSpeed = r*(AngularVelocity1 + AngularVelocity2)/2;//some setPosition Bullshit
+
   currTurningRate =  r*(AngularVelocity1 - AngularVelocity2)/base;//stuff
   
   errorForwardSpeed= desForwardSpeed-currForwardSpeed;
   errorTurningSpeed = desTurningRate-currTurningRate;
-
+  
   Vabs = errorForwardSpeed*KpRoh;
   Vdelta = errorTurningSpeed*KpPhi;
 
@@ -191,75 +236,24 @@ void MotionController(){ // this should be all that is required to run the bots 
     errorTurningSpeed = constrain(errorTurningSpeed,-1,1)*min(255/KpPhi,abs(errorTurningSpeed));
   }
  
- 
-  digitalWrite (VS1, HIGH);
-  //PWMOutput1 = abs(PWMOutput1);
-  //PWMOutput2 = abs(PWMOutput2);
-
-  analogWrite(MV1, PWMOutput2);
+  if (PWMOutput1 >0){
+    digitalWrite (VS1, HIGH);
+  }else{
+    digitalWrite(VS1,LOW);
+  }
+   if (PWMOutput1 >0){
+    digitalWrite (VS2, HIGH);
+  }else{
+    digitalWrite(VS2,LOW);
+  }
+  //digitalWrite (VS1, HIGH);
+  PWMOutput1 = abs(PWMOutput1);
+  PWMOutput2 = abs(PWMOutput2);
+  
+  analogWrite(MV1, PWMOutput1);
   analogWrite(MV2, PWMOutput2);
   
   Ts=micros()-Tc;
   Tc=micros();
 
 }
-
-//void Distance() {
-  //Angular Position of Wheel
-  //currPos = (Position1+Position2)/2*r;
-  
-  //currPos=AngularPosition1;
-  
-  //error=setPosition-currPos;
-  
-  //I=I+(Ts/1000)*error;
-  
-  //PWMOutput = error*(Kp+Ki*I);
-  
-  //if(abs(PWMOutput)>255){
-   // PWMOutput=constrain(PWMOutput,-1,1)*255;
-   // error = constrain(error,-1,1)*min(255/Kp,abs(error));
-  //}
- 
-  //Both wheels moving forward
-  //digitalWrite(VS1,HIGH);
-  //digitalWrite(VS2,HIGH);
-  
-  //PWMOutput = abs(PWMOutput);
-
-  //analogWrite(MV1, PWMOutput1);
-  //analogWrite(MV2, PWMOutput1);
-  
-  //Ts=micros()-Tc;
-  //Tc=micros();
-
-  
-//}
-
-//void RotateBot() {
-  //Angular Position of Wheel
-  //currPosRight = Position1;
-  //currPosLeft = Position2;
-  //currPos=AngularPosition1;
-  
-  //error=setPositionAngle-currPos;
-  
-  //I=I+(Ts/1000)*error;
-  
-  //PWMOutput = error*(Kp+Ki*I);
-  
-  //if(abs(PWMOutput)>255){
-    //PWMOutput=constrain(PWMOutput,-1,1)*255;
-    //error = constrain(error,-1,1)*min(255/Kp,abs(error));
-  //}
- 
- 
-  //digitalWrite (VS1, HIGH);
-  //PWMOutput = abs(PWMOutput);
-
-  //analogWrite(outPin, PWMOutput);
-  //Ts=micros()-Tc;
-  //Tc=micros();
-
-  
-//}
