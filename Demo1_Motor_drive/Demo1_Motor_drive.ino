@@ -22,11 +22,6 @@
 // 2 contributors
 //@3rikSal@MWehrlen
 //265 lines (217 sloc)  7.27 KB
-//  
-//Erik Salazar
-//Feb 10, 2021
-//Velocity left and Right of Wheels
-//Description: calculate the velocities of the left and right wheel  
 #define PI 3.1415926535897932384626433832795
 #define PWMperVolt  32.69
 #define MV1 9
@@ -46,7 +41,7 @@ const float base = 24.45; //in cm
 const float KpTheta =-105.627;
 const float Kd = 0;
 const float KpRoh = 0.64981382;
-const float KpPhi =-5.9204389;
+const float KpPhi = -5.9204389;
 
 //1 means right wheel and 2 means left wheel
 float AngularVelocity1 = 0;  //initialize all variables
@@ -63,8 +58,8 @@ float upperThreshold = 0.1;
 float phi_dot = 0;
 float Position1 = 0;
 float Position2 = 0;
-float setPosition = 0;
-float desAngle = PI/2;
+float setPosition = 30.48;
+float desAngle = 0;
 float desForwardSpeed =0;
 float desTurningRate =0;
 float currForwardSpeed =0;
@@ -83,7 +78,8 @@ float Tc;
 float D=0;
 int PWMOutput1 = 0;
 int PWMOutput2 = 0;
-boolean hasRun  = false;
+boolean done  = false;
+static unsigned int state;
 
 
 void setup() {
@@ -110,44 +106,71 @@ void setup() {
   StartTime1 = micros();
   StartTime2 = micros();  //these are too keep track of the time in the loop and interrupt
   StartLoop = micros();
+  state =0;
   attachInterrupt(digitalPinToInterrupt (a),interruptEncoder1, RISING);
   attachInterrupt(digitalPinToInterrupt (c),interruptEncoder2, RISING);  //initialize the interrupts and sets the flag
-  boolean hasRun = false;
   
 }
 
 // the loop routine runs over and over again forever:
 void loop() {
-   MotionController();
-   if (desForwardSpeed !=0 && desAngle ==0){
-      if((Position1 + Position2)/2 *r >= setPosition){
-          desForwardSpeed = 0;
+    MotionController();
+
+    Serial.print(currTheta);
+    Serial.print('\t');
+    Serial.println(errorTheta);
+    switch(state){
+      case 0:
+        if(desForwardSpeed == 0 && ((errorTheta) <= upperThreshold) && desAngle > 0) {
+//          Serial.println("Hello");
           AngularVelocity1 = 0;
           AngularVelocity2 = 0;
-          
-      }
-   }
-    Serial.print(desForwardSpeed); //print time
-    Serial.print("\t"); //print tab
-    Serial.print(desAngle); //print time
-    Serial.print("\t"); //print tab
-  //digitalWrite(VS1,HIGH);
-
-//  //p_dot = r*(AngularVelocity1 + AngularVelocity2)/2;  //equation for the velocity of the left wheel
-//  Serial.println((Position1+Position2)/2*r,5);
-  //Serial.print("\t");
-  //phi_dot = r*(AngularVelocity1 - AngularVelocity2)/base; //equation for the velocity of the right wheel
-  //Serial.print(phi_dot,5);
- 
-  //Serial.print("\t");
-    Serial.println(currTheta);
-  /*Serial.print(counter1);
-  Serial.print("\t");
-  Serial.println(counter2);*/
-  //AngularVelocity1 = 0;
-  //AngularVelocity2 = 0; //resets the velocity to zero because the car should not be moving 
-  StartLoop = EndLoop; // set the beginning time to current time
-  EndLoop = micros(); // initialize the end time
+          desTurningRate = 0;
+          desAngle = 0;
+          currTheta = 0;
+          desForwardSpeed = 7;
+          setPosition = 30.48;
+          Position1 = 0;
+          Position2 = 0;
+          counter1 = 0;
+          counter2 = 0;
+          state = 1;
+        }else if(desForwardSpeed !=0 && desAngle ==0){
+          state =1;
+        }else if(desForwardSpeed == 0 && (errorTheta >= upperThreshold) && desAngle < 0){
+          AngularVelocity1 = 0;
+          AngularVelocity2 = 0;
+          desTurningRate = 0;
+          desAngle = 0;
+          currTheta = 0;
+          desForwardSpeed = 7;
+          setPosition = 30.48;
+          Position1 = 0;
+          Position2 = 0;
+          counter1 = 0;
+          counter2 = 0;
+          state = 1;
+        }
+        break;
+      case 1:
+        desTurningRate = 0;
+        if((Position1+Position2)/2*r >= setPosition){
+          desForwardSpeed = 0;
+          desTurningRate = 0;
+          desAngle = 0;
+          currTheta = 0;
+          errorTheta = 0;
+          AngularVelocity1 = 0;
+          AngularVelocity2 = 0;
+          Position1 = 0;
+          Position2 = 0;
+          counter1 = 0;
+          counter2 = 0;
+          state =2;
+        }
+        
+        break;
+    }
   }
 
 //Right Wheel
@@ -202,12 +225,7 @@ void MotionController(){ // this should be all that is required to run the bots 
   }
   
   desTurningRate= errorTheta*KpTheta+Kd*D;//set by another controller will figure out
-  if(desForwardSpeed ==0 && (errorTheta <= upperThreshold)){
-      AngularVelocity1 = 0;
-      AngularVelocity2 = 0;
-      desTurningRate = 0;
-      
-  }
+  
   errorThetaPast=errorTheta;
   
   currForwardSpeed = r*(AngularVelocity1 + AngularVelocity2)/2;//some setPosition Bullshit
@@ -227,17 +245,17 @@ void MotionController(){ // this should be all that is required to run the bots 
   PWMOutput2 = Va2*PWMperVolt;
   
 
-  if(abs(PWMOutput1)>255){
-    PWMOutput1=constrain(PWMOutput1,-1,1)*255;
-    errorForwardSpeed = constrain(errorForwardSpeed,-1,1)*min(255/KpRoh,abs(errorForwardSpeed));
+  if(abs(PWMOutput1)>175){
+    PWMOutput1=constrain(PWMOutput1,-1,1)*175;
+    errorForwardSpeed = constrain(errorForwardSpeed,-1,1)*min(175/KpRoh,abs(errorForwardSpeed));
   }
-  if(abs(PWMOutput2)>255){
-    PWMOutput2=constrain(PWMOutput2,-1,1)*255;
-    errorTurningSpeed = constrain(errorTurningSpeed,-1,1)*min(255/KpPhi,abs(errorTurningSpeed));
+  if(abs(PWMOutput2)>175){
+    PWMOutput2=constrain(PWMOutput2,-1,1)*175;
+    errorTurningSpeed = constrain(errorTurningSpeed,-1,1)*min(175/KpPhi,abs(errorTurningSpeed));
   }
  
   if (PWMOutput1 >0){
-    digitalWrite (VS1, HIGH);
+    digitalWrite (VS1,HIGH);
   }else{
     digitalWrite(VS1,LOW);
   }
