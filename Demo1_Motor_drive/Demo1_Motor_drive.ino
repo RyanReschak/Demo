@@ -58,8 +58,8 @@ float upperThreshold = 0.1;
 float phi_dot = 0;
 float Position1 = 0;
 float Position2 = 0;
-float setPosition = 30.48;
-float desAngle = 0;
+float setPosition = 0;
+float desAngle = PI/2;
 float desForwardSpeed =0;
 float desTurningRate =0;
 float currForwardSpeed =0;
@@ -115,10 +115,6 @@ void setup() {
 // the loop routine runs over and over again forever:
 void loop() {
     MotionController();
-
-    Serial.print(currTheta);
-    Serial.print('\t');
-    Serial.println(errorTheta);
     switch(state){
       case 0:
         if(desForwardSpeed == 0 && ((errorTheta) <= upperThreshold) && desAngle > 0) {
@@ -128,7 +124,7 @@ void loop() {
           desTurningRate = 0;
           desAngle = 0;
           currTheta = 0;
-          desForwardSpeed = 7;
+          desForwardSpeed = 10;
           setPosition = 30.48;
           Position1 = 0;
           Position2 = 0;
@@ -143,7 +139,7 @@ void loop() {
           desTurningRate = 0;
           desAngle = 0;
           currTheta = 0;
-          desForwardSpeed = 7;
+          desForwardSpeed = 10;
           setPosition = 30.48;
           Position1 = 0;
           Position2 = 0;
@@ -153,7 +149,6 @@ void loop() {
         }
         break;
       case 1:
-        desTurningRate = 0;
         if((Position1+Position2)/2*r >= setPosition){
           desForwardSpeed = 0;
           desTurningRate = 0;
@@ -166,7 +161,7 @@ void loop() {
           Position2 = 0;
           counter1 = 0;
           counter2 = 0;
-          state =2;
+          state =1;
         }
         
         break;
