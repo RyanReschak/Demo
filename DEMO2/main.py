@@ -62,46 +62,47 @@ def print_LCD(object_location, corners):
         if (corners is None):
             lcd.message = "Maker Not\nDetected!"
         else:
-            lcd.message = "Maker Detected!\nAngle:" + str(object_location[0])
+            lcd.message = "Maker Detected!\nAngle:" + str(object_location[1])
     except IOError:
         print("Can't write to LCD\n")
 
 def arucoDetection():
     #Aruco Detection#
+    #detects what marker # it is
     aruco_dict = aruco.Dictionary_get(aruco.DICT_6X6_250)
     parameters =  aruco.DetectorParameters_create()
     corners, ids, rejectedImgPoints = aruco.detectMarkers(gray, aruco_dict, parameters=parameters)
-    frame_markers = aruco.drawDetectedMarkers(frame.copy(), corners, ids)
-    plt.figure()
-    plt.imshow(frame_markers)
+    #frame_markers = aruco.drawDetectedMarkers(frame.copy(), corners, ids)
+    #plt.figure()
+    #plt.imshow(frame_markers)
     #This is for not erroring out if there is not an image in the photo
     if ids is not None:
-        for i in range(len(ids)):
-            c = corners[i][0]
-            plt.plot([c[:, 0].mean()], [c[:, 1].mean()], "o", label = "id={0}".format(ids[i]))
+#        for i in range(len(ids)):
+#            c = corners[i][0]
+#            plt.plot([c[:, 0].mean()], [c[:, 1].mean()], "o", label = "id={0}".format(ids[i]))
     #        plt.legend()
     #        plt.show()
     #        print(ids)
         return corners        
     else:
-        print("No Markers Found")
+        #print("No Markers Found")
         return None
         
 def findDist(corners):
-#    #Focal Length is 3.60 mm & Pixel Size is 1.4 um x 1.4 um & Resolution is 1920 x 1080
-    imageH = 480
-    imageW = 640
-    objH = 95
-    objW = 95
-    #focalL = 1841.36842105 #This is in pixels for 1920x1080 image
-    focalL = 627.246315789 #This is in pixels for 640x480 video
-    widthA = 0
-
-#Have to use 'if' again in case a marker isn't detected
+   
+    #Have to use 'if' again in case a marker isn't detected
     if corners is not None:
-
-#This Determines which half of the field of view the marker is in (left or right)
-#The absolute value is needed for a true comparison
+        #Focal Length is 3.60 mm & Pixel Size is 1.4 um x 1.4 um & Resolution is 1920 x 1080
+        imageH = 480
+        imageW = 640
+        objH = 95
+        objW = 95
+        #focalL = 1841.36842105 #This is in pixels for 1920x1080 image
+        focalL = 627.246315789 #This is in pixels for 640x480 video
+        #widthA = 0
+        
+        #This Determines which half of the field of view the marker is in (left or right)
+        #The absolute value is needed for a true comparison
         avgX = int((corners[0][0][0][0] + corners[0][0][1][0] + corners[0][0][2][0] + corners[0][0][3][0]) /4)
         avgY = int((corners[0][0][0][1] + corners[0][0][1][1] + corners[0][0][2][1] + corners[0][0][3][1]) /4)
         perHeight = (abs(corners[0][0][0][1] - corners[0][0][3][1]) + abs(corners[0][0][1][1] - corners[0][0][2][1]))/2
@@ -110,26 +111,25 @@ def findDist(corners):
         #print(focalLength)
         distToObj = focalL * objH / perHeight
         
-        if avgX < imageW/2:
-            widthA = imageW/2 - avgX
-            widthObj = focalL * distToObj / widthA
-            angle = math.degrees(math.atan(distToObj/widthObj))
-        elif avgX > imageW/2:
-            widthA = avgX - imageW/2
-            widthObj = focalL * distToObj / widthA
-            angle = -1 * math.degrees(math.atan(distToObj/widthObj))
+        angleCave = avgX * 54 / imageW
+        angleCave = 27 - angleCave
+        '''if angleCave > 27:
+            angleCave = 27 - angleCave
+        elif angleCave < 27:
+             angleCave = 27 - angleCave
         else:
-            widthA = 0
-            angle = 0
+            angleCave = 0'''
         #widthA = widthA+(perWidth/2)        
 #Just convert to different units to get correct values
+        distToObj = distToObj / 10
         #print(distToObj," mm")
         #print(distToObj*0.0393," in")
         #print(angle, " degrees")
-        return [angle, distToObj]
+        return [angleCave, distToObj]
 
     else:
-        print("No Markers Found")
+        return None
+        #print("No Markers Found")
 
 lcd.clear()
 # Set LCD color to red
@@ -138,22 +138,23 @@ lcd.color = [100, 0, 255]
 
 while(True):
     #Capture Frame by Frame
-    ret, frame = cap.read()
-    if cap.isOpened() != True:
-        cap.open()
+    ret, frame = cap.read()    
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     corners = arucoDetection()
     object_location = findDist(corners)
     
-    print_LCD(object_location, corners)
+    #This is for testing, slows down code 300%#
+    if corners is not None:
+        print_LCD(object_location, corners)
+    #print(object_location)
     #Display the frame and kill prog if Q is pressed
-    cv2.imshow('frame', gray)
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        break
+    #cv2.imshow('frame', gray)
+    #if cv2.waitKey(1) & 0xFF == ord('q'):
+        #break
 
 #Release Capture at End
 cap.release()
-cv2.destroyAllWindows()
+#cv2.destroyAllWindows()
 '''while True:
         
         # get set position from Aruco Marker
@@ -168,4 +169,5 @@ cv2.destroyAllWindows()
         real_pos = readNumber()
         #prints it all to the LCD screen
         print_LCD(set_pos, real_pos)'''
+
 
