@@ -22,7 +22,7 @@
 // 2 contributors
 //@3rikSal@MWehrlen
 //265 lines (217 sloc)  7.27 KB
-
+#define SLAVE_ADDRESS 0x04
 #define PI 3.1415926535897932384626433832795
 #define PWMperVolt  32.69
 #define MV1 9
@@ -35,14 +35,25 @@
 #define b  5  //initialize pins
 #define c  3
 #define d  6
+
+#define FIND    0
+#define FORWARD 1
+#define CIRCLE  2
+#define STOP    3
+
+int currState = -1; //reason is to update at start
+int desiredState = 0; 
+
 long int counter1 = 0; //keeps track of position of encoder
 long int counter2 = 0;
 const float r = 7.3;  //these values are the constants of the body of the car and wheels in (cm)
 const float base = 24.45; //in cm
-const float KpTheta =-100.627;
+const float KpTheta = 18.0944;
 const float Kd = 0;
-const float KpRoh = 0.44981382;
-const float KpPhi = -5.4204389;
+const float KpRoh = 0.47634;
+const float KiRoh = 0;
+const float KpPhi = 5.234;
+const float KiPhi = 0;
 
 //1 means right wheel and 2 means left wheel
 float AngularVelocity1 = 0;  //initialize all variables
@@ -60,8 +71,8 @@ float phi_dot = 0;
 float Position1 = 0;
 float Position2 = 0;
 float setPosition = 0;
-float desAngle = -3*PI/4;
-float desForwardSpeed =0;
+float desAngle = 0;
+float desForwardSpeed =10;
 float desTurningRate =0;
 float currForwardSpeed =0;
 float currTheta =0;
@@ -77,11 +88,17 @@ float Va2 =0;
 float Ts=0;
 float Tc;
 float D=0;
+float IRoh=0;
+float IPhi=0;
 int PWMOutput1 = 0;
 int PWMOutput2 = 0;
 boolean done  = false;
 static unsigned int state;
 
+//Serial Communication
+float receivedPosition = 1;
+float receivedAngle = 0;
+bool receivedFirstComplete = false;
 
 void setup() {
   
@@ -110,13 +127,15 @@ void setup() {
   state =0;
   attachInterrupt(digitalPinToInterrupt (a),interruptEncoder1, RISING);
   attachInterrupt(digitalPinToInterrupt (c),interruptEncoder2, RISING);  //initialize the interrupts and sets the flag
-  
+
+  Serial.begin(115200);
 }
 
 // the loop routine runs over and over again forever:
 void loop() {
-    MotionController();
-    switch(state){
+    FSM();
+    //MotionController();
+    /*switch(state){
       case 0:
         if(desForwardSpeed == 0 && ((errorTheta) <= upperThreshold) && desAngle > 0) {
 //          Serial.println("Hello");
@@ -150,7 +169,7 @@ void loop() {
         }
         break;
       case 1:
-        if((Position1+Position2)/2*r >= setPosition){
+        if((r*(Position1+Position2)/2 >= setPosition)){
           desForwardSpeed = 0;
           desTurningRate = 0;
           desAngle = 0;
@@ -163,29 +182,41 @@ void loop() {
           counter1 = 0;
           counter2 = 0;
           state =1;
-        }else{state=0;}
+        }
         
         break;
+    }*/
+}
+
+void FSM(){
+  if(currState != desiredState){
+    currState = desiredState;
+    switch(desiredState) {
+      case FIND:
+        Serial.println("State 0");
+        break;
+      case FORWARD:
+        desPosition = receivedPosition;
+        desAngle = receivedAngle;
+        //Serial.println(receivedAngle);
+        //Serial.println(receivedPosition);
+        break;
+      case CIRCLE:
+        break;
+      case STOP:
+        break;
     }
+    
   }
   
-//maybe idk
-//void forward(){
-//  if((Position1+Position2)/2*r >= setPosition){
-//    digitalWrite (VS1,HIGH);
-//    digitalWrite (VS2, HIGH);
-//
-//    PWMOutput1=175;
-//    PWMOutput2=175;
-//
-//    analogWrite(MV1, PWMOutput1);
-//    analogWrite(MV2, PWMOutput2);
-//  }
-//  else{
-//    analogWrite(MV1, 0);
-//    analogWrite(MV2, 0);
-//  }
-//}
+}
+
+void serialEvent(){
+  //it has to switch between reading the angle and distance
+  receivedAngle = Serial.parseFloat();
+  receivedPosition = Serial.parseFloat();
+  desiredState = 1;
+}
 
 //Right Wheel
 void interruptEncoder1 (){ //interrupt
@@ -237,20 +268,27 @@ void MotionController(){ // this should be all that is required to run the bots 
   else{
     D=0;
   }
+
+//  IRoh = IRoh+Ts*errorForwardSpeed;
+//  IPhi = IPhi+Ts*errorTuringSpeed;
   
   desTurningRate= errorTheta*KpTheta+Kd*D;//set by another controller will figure out
   
   errorThetaPast=errorTheta;
   
   currForwardSpeed = r*(AngularVelocity1 + AngularVelocity2)/2;//some setPosition Bullshit
-
+  Serial.println(desForwardSpeed);
   currTurningRate =  r*(AngularVelocity1 - AngularVelocity2)/base;//stuff
-  
+  //Serial.println(currForwardSpeed);
   errorForwardSpeed= desForwardSpeed-currForwardSpeed;
+  //Serial.println(errorForwardSpeed);
   errorTurningSpeed = desTurningRate-currTurningRate;
   
   Vabs = errorForwardSpeed*KpRoh;
   Vdelta = errorTurningSpeed*KpPhi;
+
+//  Vabs = errorForwardSpeed*KpRoh+KiRoh*IRoh;
+//  Vdelta = errorTurningSpeed*KpPhi+KiPhi*IPhi;
 
   Va1 = (Vabs+Vdelta)/2;
   Va2 = (Vabs-Vdelta)/2;
