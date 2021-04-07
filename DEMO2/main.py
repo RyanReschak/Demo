@@ -4,7 +4,8 @@ Uses I2C to send a image taken integer to the Arduino
 Ardunio spits back wheel position
 Make sure to check the connections.
 '''
-#communication 
+#communication
+import serial
 import smbus
 import time
 import board
@@ -26,7 +27,8 @@ import pandas as pd
 
 # for RPI version 1, use “bus = smbus.SMBus(0)”
 bus = smbus.SMBus(1)
-
+ser = serial.Serial("/dev/ttyACM0", 115200, timeout=1)#, writeTimeout = 3)
+ser.flush()
 # This is the address we setup in the Arduino Program
 address = 0x04
 offset = 1
@@ -40,20 +42,31 @@ lcd = character_lcd.Character_LCD_RGB_I2C(i2c, lcd_columns, lcd_rows)
 cap = cv2.VideoCapture(0)
 #camera.balanceExposure()
 
-def writeNumber(value):
+def writeNumbers(object_location):
     try:
-        bus.write_byte(address, value)
+        
+        ang_pos = str(round(object_location[0], 2)) + ' ' + str(round(object_location[1],2)) + '\n'
+        #print(ang_pos)
+        val_bytes = ang_pos.encode('utf-8')
+        #val = bytes(str(object_location[0]) + ' ' + str(object_location[1]) + '\n', 'utf-8')
+        #val = b"1\n"#'1\n', 'utf-8')
+        #val = b'' + 
+        #val = bytes(str(object_location[0]) + '\n', 'utf-8')
+        ser.write(val_bytes)
     except IOError:
         print("Can't Write to Arduino")
         return "error_w"
 
-def readNumber():
-    try:
-        #arduino will send encoder location 
-        return bus.read_byte(address)
-    except IOError:
-        print("Can't Read to Arduino")
-        return "error_r"
+def readNumbers():
+    while (ser.inWaiting() > 0):
+        try:
+            line = ser.readline().decode("utf-8").rstrip()
+            #print("serial output : ", line)
+            print(line)
+            return line
+    
+        except:
+            print("Communication Error")
 
 def print_LCD(object_location, corners):
     try:
@@ -143,9 +156,18 @@ while(True):
     corners = arucoDetection()
     object_location = findDist(corners)
     
-    #This is for testing, slows down code 300%#
+    #This is for testing, slows down code
     if corners is not None:
         print_LCD(object_location, corners)
+        writeNumbers(object_location)
+        #while True:
+            
+        #time.sleep(1)
+        #while True:
+         #   readNumbers()        
+            #lcd.clear()
+            #lcd.message = str(r)
+        break
     #print(object_location)
     #Display the frame and kill prog if Q is pressed
     #cv2.imshow('frame', gray)
@@ -169,5 +191,4 @@ cap.release()
         real_pos = readNumber()
         #prints it all to the LCD screen
         print_LCD(set_pos, real_pos)'''
-
 
