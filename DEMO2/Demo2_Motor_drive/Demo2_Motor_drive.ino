@@ -304,10 +304,31 @@ void move(){
 
 
 void serialEvent(){
-  //it has to switch between reading the angle and distance
-  receivedAngle = Serial.parseFloat();
-  receivedPosition = Serial.parseFloat();
-  desiredState = 1;
+  //Useful for testing without RPI comment everything else out if this is true
+  //receivedAngle = Serial.parseFloat();
+  //receivedPosition = Serial.parseFloat();
+  
+  String sAngle = "";
+  String sPos = "";
+  bool firstString = false;
+  String data;
+  while(Serial.available() > 0){
+    data = Serial.readStringUntil('\n');
+  }
+  for (int i = 0; i < data.length(); i++) {
+    if (data[i] == ' ') {
+      firstString = true;
+    } else if (!firstString){
+      sAngle += data[i];
+    } else if (firstString) {
+      sPos += data[i];
+    }
+  }
+  
+  receivedAngle = sAngle.toFloat();
+  receivedPosition = sPos.toFloat();
+  
+  //desiredState = FORWARD;
 }
 
 
