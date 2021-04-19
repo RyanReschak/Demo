@@ -1,6 +1,6 @@
 '''
 Ryan Reschak and Doyle Smith
-Uses I2C to send a image taken integer to the Arduino
+Uses Serial to send a image taken integer to the Arduino
 Ardunio spits back wheel position
 Make sure to check the connections.
 '''
@@ -27,7 +27,7 @@ import pandas as pd
 
 # for RPI version 1, use “bus = smbus.SMBus(0)”
 bus = smbus.SMBus(1)
-ser = serial.Serial("/dev/ttyACM0", 115200, timeout=1)#, writeTimeout = 3)
+ser = serial.Serial("/dev/ttyACM1", 115200, timeout=1)#, writeTimeout = 3)
 ser.flush()
 # This is the address we setup in the Arduino Program
 address = 0x04
@@ -45,7 +45,7 @@ cap = cv2.VideoCapture(0)
 def writeNumbers(object_location):
     try:
         
-        ang_pos = str(round(object_location[0], 2)) + ' ' + str(round(object_location[1],2)) + '\n'
+        ang_pos = str(round(object_location[0], 3)) + ' ' + str(round(object_location[1],3)) + '\n'
         #print(ang_pos)
         val_bytes = ang_pos.encode('utf-8')
         #val = bytes(str(object_location[0]) + ' ' + str(object_location[1]) + '\n', 'utf-8')
@@ -70,12 +70,16 @@ def readNumbers():
 
 def print_LCD(object_location, corners):
     try:
+        
+
         lcd.clear()
         #if statement needed for set pos and real pos
-        if (corners is None):
-            lcd.message = "Maker Not\nDetected!"
-        else:
-            lcd.message = "Maker Detected!\nAngle:" + str(object_location[1])
+#        if (corners is None):
+#            #print("Marker Not Found")
+#            #lcd.message = "Maker Not\nDetected!"
+#        else:
+#            #print("Marker Found")
+#            #lcd.message = "Maker Detected!\nAngle:" + str(object_location[1])
     except IOError:
         print("Can't write to LCD\n")
 
@@ -90,11 +94,12 @@ def arucoDetection():
     #plt.imshow(frame_markers)
     #This is for not erroring out if there is not an image in the photo
     if ids is not None:
+       # print("Marker Found")
 #        for i in range(len(ids)):
 #            c = corners[i][0]
 #            plt.plot([c[:, 0].mean()], [c[:, 1].mean()], "o", label = "id={0}".format(ids[i]))
     #        plt.legend()
-    #        plt.show()
+        #plt.show()
     #        print(ids)
         return corners        
     else:
@@ -125,16 +130,11 @@ def findDist(corners):
         distToObj = focalL * objH / perHeight
         
         angleCave = avgX * 54 / imageW
-        angleCave = 27 - angleCave
-        '''if angleCave > 27:
-            angleCave = 27 - angleCave
-        elif angleCave < 27:
-             angleCave = 27 - angleCave
-        else:
-            angleCave = 0'''
+        angleCave = 27 - angleCave #Positisve on the left & Negsative on the Right
         #widthA = widthA+(perWidth/2)        
 #Just convert to different units to get correct values
         distToObj = distToObj / 10
+        angleCave = (angleCave * 3.1415926535897932384626433832795 / 180) * 0.66
         #print(distToObj," mm")
         #print(distToObj*0.0393," in")
         #print(angle, " degrees")
@@ -148,7 +148,9 @@ lcd.clear()
 # Set LCD color to red
 lcd.color = [100, 0, 255]
 # grab a video from the camera
-
+times = 0
+old_angle = 0
+finalTime = 15
 while(True):
     #Capture Frame by Frame
     ret, frame = cap.read()    
@@ -156,23 +158,33 @@ while(True):
     corners = arucoDetection()
     object_location = findDist(corners)
     
+    
     #This is for testing, slows down code
-    if corners is not None:
-        print_LCD(object_location, corners)
-        writeNumbers(object_location)
-        #while True:
-            
-        #time.sleep(1)
-        #while True:
-         #   readNumbers()        
-            #lcd.clear()
-            #lcd.message = str(r)
-        break
+    if corners is not None:# and times <= finalTime:# and old_angle != object_location[0]):
+        #if old_angle != object_location[0]:
+        if times == finalTime or times == 0:
+            writeNumbers(object_location)
+        print(object_location[0])
+        times += 1
+        old_angle = object_location[0]
+    #time.sleep(2)
+    #print_LCD(object_location, corners)
+        #print(object_location[0])
+
+    #while True:
+        
+    #time.sleep(1)
+    #while True:
+     #   readNumbers()        
+        #lcd.clear()
+        #lcd.message = str(r)
+        if times == finalTime+1:
+            break
     #print(object_location)
     #Display the frame and kill prog if Q is pressed
-    #cv2.imshow('frame', gray)
-    #if cv2.waitKey(1) & 0xFF == ord('q'):
-        #break
+#    cv2.imshow('frame', gray)
+#    if cv2.waitKey(1) & 0xFF == ord('q'):
+#        break
 
 #Release Capture at End
 cap.release()

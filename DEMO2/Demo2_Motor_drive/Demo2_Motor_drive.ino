@@ -43,7 +43,7 @@ long int counter1 = 0; //keeps track of position of encoder
 long int counter2 = 0;
 const float r = 7.3;  //these values are the constants of the body of the car and wheels in (cm)
 const float base = 24.45; //in cm
-const float circumference = 30.48;
+const float circumference = 39; //Don't fucking change this is fine
 
 const float KpTheta = 18.0944;
 const float Kd = 0;
@@ -52,7 +52,7 @@ const float KiRoh = 0;
 const float KpPhi = 5.234;
 const float KiPhi = 0;
 
-enum moving {SEARCHING,TURNING,FORWARD,CIRCLE,WAIT};
+enum moving {SEARCHING,CALIBRATE,TURNING,FORWARD,TURN90,REVERSE,CIRCLE,WAIT};
 moving movingState = SEARCHING;
 
 //1 means right wheel and 2 means left wheel
@@ -66,12 +66,13 @@ float StartLoop = 0;
 float EndLoop = 0;
 float p_dot = 0;
 float phi = 0;
-float upperThreshold = 0.1;
+float upperThreshold = 0.005;
 float phi_dot = 0;
 float Position1 = 0;
 float Position2 = 0;
 float setPosition = 0;
 float desAngle = 0;
+float desAnglePast=0;
 float desForwardSpeed =10;
 float desTurningRate =0;
 float currForwardSpeed =0;
@@ -92,6 +93,7 @@ float IRoh=0;
 float IPhi=0;
 int PWMOutput1 = 0;
 int PWMOutput2 = 0;
+int turnCount=0;
 boolean done  = false;
 static unsigned int state;
 
@@ -196,10 +198,17 @@ void move(){
     
     if(receivedPosition!=0){//if there is a desired position to move to
       
-      movingState=TURNING; // go to turning state
+      movingState=CALIBRATE; // go to turning state
       //set new angle and position
-      setPosition = receivedPosition;
+//      setPosition = receivedPosition-20;
+//      if(receivedAngle>0){
+//        desAngle=receivedAngle-.03;
+//      }else{
+//        desAngle=receivedAngle+.03;
+//      }
       desAngle=receivedAngle;
+      desAnglePast=receivedAngle;
+      
       //reinitilize the variables
       Position1 = 0;
       Position2 = 0;
@@ -211,9 +220,28 @@ void move(){
       digitalWrite (VS2,LOW);
 
       Va1 = 1;
-      Va2 = 1;
+      Va2 = 1.3;
 
     }
+    break;
+
+  case CALIBRATE:
+    Va1 = 0;
+    Va2 = 0;
+    //if(turnCount<=1){
+      
+      desAngle=receivedAngle;
+      setPosition=receivedPosition-32;
+      if(desAnglePast!=desAngle){
+        movingState=TURNING;
+        //turnCount++;
+      }
+    
+//    }else{
+//      movingState=FORWARD;
+//    }
+
+
     break;
     
   case TURNING://turning to face marker
@@ -235,24 +263,74 @@ void move(){
       if(desAngle>0){//(right)
         digitalWrite (VS1,HIGH);
         digitalWrite (VS2,HIGH);
-        Va1 = 1;
-        Va2 = 1;
+        Va1 = 3;
+        Va2 = 3;
         
       }else{//(left)
         digitalWrite (VS1,LOW);
         digitalWrite (VS2,LOW);
-        Va1 = 1;
-        Va2 = 1;
+        Va1 = 2;
+        Va2 = 2;
       }
     }
     break;
-    
+  
   case FORWARD://moving towards the marker
     //Serial.println(movingState);
     //set enable pins for forward motion
     digitalWrite (VS1,HIGH);
     digitalWrite (VS2,LOW);
     if((Position1+Position2)/2*r >= setPosition){// if the desired positon has been reached
+      movingState=TURN90;//change moving state to circle the marker
+      //reinitilize the variables
+      Position1 = 0;
+      Position2 = 0;
+      counter1 = 0;
+      counter2 = 0;
+      
+    }else{//move forward
+      Va1 = 4;
+      Va2 = 4.3;
+    }
+    break;
+
+  case TURN90:
+    desAngle=-PI/2;
+    //Serial.println(movingState);
+    //establish new error in angle positioning
+    currTheta = r*(Position1 - Position2)/base; // where d is the distantce between the wheels
+    errorTheta = desAngle-currTheta;
+    //if there is no error in the angle or no set angle
+    if(((errorTheta <= upperThreshold) && desAngle > 0)||((errorTheta >= upperThreshold) && desAngle < 0)||desAngle==0){
+      movingState=CIRCLE;
+
+      //reinitilize the variables
+      Position1 = 0;
+      Position2 = 0;
+      counter1 = 0;
+      counter2 = 0;
+      
+    }else{//turn in place until desired angle is reached 
+      if(desAngle>0){//(right)
+        digitalWrite (VS1,HIGH);
+        digitalWrite (VS2,HIGH);
+        Va1 = 3;
+        Va2 = 3.2;
+        
+      }else{//(left)
+        digitalWrite (VS1,LOW);
+        digitalWrite (VS2,LOW);
+        Va1 = 2;
+        Va2 = 2;
+      }
+    }
+    break;
+    
+  case REVERSE:
+    setPosition=-10;
+    digitalWrite (VS1,LOW);
+    digitalWrite (VS2,HIGH);
+    if((Position1+Position2)/2*r <= setPosition){// if the desired positon has been reached
       movingState=CIRCLE;//change moving state to circle the marker
       //reinitilize the variables
       Position1 = 0;
@@ -262,7 +340,7 @@ void move(){
       
     }else{//move forward
       Va1 = 4;
-      Va2 = 4;
+      Va2 = 4.2;
     }
     break;
     
@@ -277,10 +355,10 @@ void move(){
       counter2 = 0;
     }else{//turn in a circle
       digitalWrite (VS1,HIGH);
-     // digitalWrite (VS2,HIGH);
+      digitalWrite (VS2, LOW);
     
       Va1 = 4;
-      Va2 = 1;
+      Va2 = 1.8;
     }
 
 //      movingState=WAIT;
