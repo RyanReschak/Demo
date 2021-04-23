@@ -27,7 +27,7 @@ import pandas as pd
 
 # for RPI version 1, use “bus = smbus.SMBus(0)”
 bus = smbus.SMBus(1)
-ser = serial.Serial("/dev/ttyACM1", 115200, timeout=1)#, writeTimeout = 3)
+ser = serial.Serial("/dev/ttyACM0", 115200, timeout=1)#, writeTimeout = 3)
 ser.flush()
 # This is the address we setup in the Arduino Program
 address = 0x04
@@ -40,6 +40,7 @@ lcd_rows = 2
 # Initialise the LCD class
 lcd = character_lcd.Character_LCD_RGB_I2C(i2c, lcd_columns, lcd_rows)
 cap = cv2.VideoCapture(0)
+
 #camera.balanceExposure()
 
 def writeNumbers(object_location):
@@ -57,12 +58,11 @@ def writeNumbers(object_location):
         print("Can't Write to Arduino")
         return "error_w"
 
-def readNumbers():
+def readSerial():
     while (ser.inWaiting() > 0):
         try:
             line = ser.readline().decode("utf-8").rstrip()
             #print("serial output : ", line)
-            print(line)
             return line
     
         except:
@@ -101,10 +101,10 @@ def arucoDetection():
     #        plt.legend()
         #plt.show()
     #        print(ids)
-        return corners        
+        return [corners, ids]        
     else:
         #print("No Markers Found")
-        return None
+        return [None, None]
         
 def findDist(corners):
    
@@ -113,18 +113,18 @@ def findDist(corners):
         #Focal Length is 3.60 mm & Pixel Size is 1.4 um x 1.4 um & Resolution is 1920 x 1080
         imageH = 480
         imageW = 640
-        objH = 95
-        objW = 95
+        objH = 100
+        objW = 100
         #focalL = 1841.36842105 #This is in pixels for 1920x1080 image
         focalL = 627.246315789 #This is in pixels for 640x480 video
         #widthA = 0
         
         #This Determines which half of the field of view the marker is in (left or right)
         #The absolute value is needed for a true comparison
-        avgX = int((corners[0][0][0][0] + corners[0][0][1][0] + corners[0][0][2][0] + corners[0][0][3][0]) /4)
-        avgY = int((corners[0][0][0][1] + corners[0][0][1][1] + corners[0][0][2][1] + corners[0][0][3][1]) /4)
-        perHeight = (abs(corners[0][0][0][1] - corners[0][0][3][1]) + abs(corners[0][0][1][1] - corners[0][0][2][1]))/2
-        perWidth = (abs(corners[0][0][0][0] - corners[0][0][1][0]) + abs(corners[0][0][2][0] - corners[0][0][3][0]))/2
+        avgX = int((corners[0][0][0] + corners[0][1][0] + corners[0][2][0] + corners[0][3][0]) /4)
+        avgY = int((corners[0][0][1] + corners[0][1][1] + corners[0][2][1] + corners[0][3][1]) /4)
+        perHeight = (abs(corners[0][0][1] - corners[0][3][1]) + abs(corners[0][1][1] - corners[0][2][1]))/2
+        perWidth = (abs(corners[0][0][0] - corners[0][1][0]) + abs(corners[0][2][0] - corners[0][3][0]))/2
         #focalLength = perHeight * 647.7 / objH
         #print(focalLength)
         distToObj = focalL * objH / perHeight
@@ -149,36 +149,44 @@ lcd.clear()
 lcd.color = [100, 0, 255]
 # grab a video from the camera
 times = 0
-old_angle = 0
+#old_angle = 0
 finalTime = 15
+markers_order = [0,1,2,3,4,5,6]
+index_order = 0 
+
 while(True):
     #Capture Frame by Frame
     ret, frame = cap.read()    
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    corners = arucoDetection()
-    object_location = findDist(corners)
+    corners, ids = arucoDetection()
     
+    if corners is not None:
+        #this is the index the id is on
+        found_index = None
+        #find beacon 
+        for i in range(len(corners)):
+            if (ids[i][0] == markers_order[index_order]):
+                found_index = i
+        if found_index is None:
+            continue
+        #print(corners)
+        #print(corners[found_index])
+        object_location = findDist(corners[found_index])
     
-    #This is for testing, slows down code
-    if corners is not None:# and times <= finalTime:# and old_angle != object_location[0]):
         #if old_angle != object_location[0]:
         if times == finalTime or times == 0:
-            writeNumbers(object_location)
+            #print(corners[found_index])
+            #writeNumbers(object_location)
+            index_order += 1
+            #if(readSerial() == "Y"):
+            times = 0
+            
         print(object_location[0])
-        times += 1
-        old_angle = object_location[0]
-    #time.sleep(2)
-    #print_LCD(object_location, corners)
-        #print(object_location[0])
-
-    #while True:
+        #print(ids[0][0])
         
-    #time.sleep(1)
-    #while True:
-     #   readNumbers()        
-        #lcd.clear()
-        #lcd.message = str(r)
-        if times == finalTime+1:
+        times += 1
+        #old_angle = object_location[0]
+        if times == finalTime+1 and index_order == len(markers_order):
             break
     #print(object_location)
     #Display the frame and kill prog if Q is pressed
