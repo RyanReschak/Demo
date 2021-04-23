@@ -95,6 +95,7 @@ int PWMOutput1 = 0;
 int PWMOutput2 = 0;
 int turnCount=0;
 boolean done  = false;
+boolean newVal = false;
 static unsigned int state;
 
 //Serial Communication
@@ -353,6 +354,14 @@ void move(){
       Position2 = 0;
       counter1 = 0;
       counter2 = 0;
+    }else if(newVal){
+      movingState=CALIBRATE;//change moving state to wair
+      //reinitilize the variables
+      Position1 = 0;
+      Position2 = 0;
+      counter1 = 0;
+      counter2 = 0;
+      
     }else{//turn in a circle
       digitalWrite (VS1,HIGH);
       digitalWrite (VS2, LOW);
