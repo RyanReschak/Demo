@@ -40,6 +40,7 @@ lcd_rows = 2
 # Initialise the LCD class
 lcd = character_lcd.Character_LCD_RGB_I2C(i2c, lcd_columns, lcd_rows)
 cap = cv2.VideoCapture(0)
+cap.set(cv2.CAP_PROP_FPS, 120) #Absolute Magic
 
 #camera.balanceExposure()
 
@@ -62,7 +63,7 @@ def readSerial():
     while (ser.inWaiting() > 0):
         try:
             line = ser.readline().decode("utf-8").rstrip()
-            #print("serial output : ", line)
+            print("serial output : ", line)
             return line
     
         except:
@@ -134,7 +135,7 @@ def findDist(corners):
         #widthA = widthA+(perWidth/2)        
 #Just convert to different units to get correct values
         distToObj = distToObj / 10
-        angleCave = (angleCave * 3.1415926535897932384626433832795 / 180) * 0.66
+        angleCave = (angleCave * 3.1415926535897932384626433832795 / 180) * 0.8
         #print(distToObj," mm")
         #print(distToObj*0.0393," in")
         #print(angle, " degrees")
@@ -151,12 +152,22 @@ lcd.color = [100, 0, 255]
 times = 0
 #old_angle = 0
 finalTime = 15
-markers_order = [0,1,2,3,4,5,6]
+markers_order = [0,1,2,3,4,5]
 index_order = 0 
 
 while(True):
+    
+    #Use camera with fast shutter speed + high brightness + contrast
     #Capture Frame by Frame
-    ret, frame = cap.read()    
+#    tme = []
+#    for i in range(100):
+#        t = time.time()
+#        ret, frame = cap.read()
+#        elapsed = time.time() - t
+#        tme.append(elapsed)
+#    print(sum(tme)/len(tme))
+    
+    ret, frame = cap.read()
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     corners, ids = arucoDetection()
     
@@ -174,41 +185,35 @@ while(True):
         object_location = findDist(corners[found_index])
     
         #if old_angle != object_location[0]:
-        if times == finalTime or times == 0:
+        if times >= finalTime or times == 0:
+            print(object_location[0])
             #print(corners[found_index])
-            #writeNumbers(object_location)
-            index_order += 1
-            #if(readSerial() == "Y"):
-            times = 0
-            
-        print(object_location[0])
-        #print(ids[0][0])
+            writeNumbers(object_location)
+            if times == finalTime:
+                index_order += 1
+                time.sleep(0.2)
+                while (readSerial() != "Y"):
+                    continue
+                #incase there is a problem
+                times = 0
+                if index_order == len(markers_order):
+                    time.sleep(10)
+                    break
+                
+                continue
         
+        #print(ids[0][0])
         times += 1
         #old_angle = object_location[0]
-        if times == finalTime+1 and index_order == len(markers_order):
-            break
+        
     #print(object_location)
     #Display the frame and kill prog if Q is pressed
 #    cv2.imshow('frame', gray)
 #    if cv2.waitKey(1) & 0xFF == ord('q'):
 #        break
-
+ser.close()
 #Release Capture at End
 cap.release()
 #cv2.destroyAllWindows()
-'''while True:
-        
-        # get set position from Aruco Marker
-        set_pos = camera.markerDetection()
-        #set_pos = 2
-        #writes to the arduino where it needs to go
-        if set_pos != None:
-            writeNumber(set_pos)
-        # sleep a tehnth of a second
-        #time.sleep(1)
-        # gets the actual position of the wheel from the encoder
-        real_pos = readNumber()
-        #prints it all to the LCD screen
-        print_LCD(set_pos, real_pos)'''
+
 
