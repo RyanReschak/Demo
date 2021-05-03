@@ -2,24 +2,8 @@
 //
 //
 //RyanReschak
-///
-//Demo
-//1
-//00
-//Code
-//Issues
-//Pull requests
-//Actions
-//Projects
-//Wiki
-//Security
-//Insights
-//Demo/Demo1_Motor_drive/Demo1_Motor_drive.ino
-//@MWehrlen
+//Final Demo
 //MWehrlen added motor driver code in place of previous prototypes
-//Latest commit 1f21c16 3 days ago
-// History
-// 2 contributors
 //@3rikSal@MWehrlen
 //265 lines (217 sloc)  7.27 KB
 #define SLAVE_ADDRESS 0x04
